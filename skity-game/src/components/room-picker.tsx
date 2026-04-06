@@ -8,8 +8,8 @@ const RoomPicker = ({
 }: {
   setGameContract: Dispatch<SetStateAction<string>>;
 }) => {
-  // Default to the deployed contract from CLI
-  const [contractAddress, setContractAddress] = useState("903b39bcb8b8a58148591916d6b52856b4266a17d12c1c62c17a59e3230bf13b");
+  // Default to the deployed preprod contract
+  const [contractAddress, setContractAddress] = useState("344d8ad330d47d56b8175c73e00fac279d196610a73e2621b110b28369a25f29");
 
   const handleJoinRoom = () => {
     if (contractAddress.trim()) {
@@ -17,9 +17,17 @@ const RoomPicker = ({
     }
   };
 
-  const handleCreateRoom = () => {
-    // TODO: Deploy new contract
-    alert("Contract deployment coming soon! For now, enter an existing contract address.");
+  const handleCreateRoom = async () => {
+    try {
+      alert("Deploying new contract... This may take a moment.");
+      // TODO: Implement contract deployment
+      // For now, just use the existing contract
+      alert("Contract deployment not yet implemented. Using existing contract for demo.");
+      setGameContract(contractAddress);
+    } catch (error) {
+      console.error("Failed to deploy contract:", error);
+      alert("Failed to deploy contract. Please use an existing contract address.");
+    }
   };
 
   return (

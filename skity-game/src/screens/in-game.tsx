@@ -64,6 +64,16 @@ const InGameScreen = ({
 
   const [playerRole, setPlayerRole] = useState<PlayerRole>(PlayerRole.Unknown);
   const [loadingButtons, setLoadingButtons] = useState<boolean>(false);
+  const [showUsernameModal, setShowUsernameModal] = useState(false);
+
+  // Username management
+  const getUsername = (address: string) => {
+    return localStorage.getItem(`username_${address}`) || address.slice(0, 8);
+  };
+
+  const setUsername = (address: string, username: string) => {
+    localStorage.setItem(`username_${address}`, username);
+  };
 
   // Poll contract state every 3 seconds
   useEffect(() => {
@@ -127,12 +137,22 @@ const InGameScreen = ({
     : "w-11/12 h-11/12 sm:w-full sm:h-auto mt-20 sm:mt-0 transition-all duration-300";
 
   // Handler functions
-  const handleJoinGame = async () => {
+  const handleJoinGameClick = () => {
+    setShowUsernameModal(true);
+  };
+
+  const handleJoinGame = async (username: string) => {
+    setShowUsernameModal(false);
     setLoadingButtons(true);
     try {
+      // Store username
+      if (shieldedAddress) {
+        setUsername(shieldedAddress, username);
+      }
+      
       await joinGame();
       ConfettiEffect.playerJoined();
-      showToast.playerJoined("You");
+      showToast.playerJoined(username);
     } catch (error) {
       console.error("Failed to join game:", error);
       showToast.error("Failed to join game");

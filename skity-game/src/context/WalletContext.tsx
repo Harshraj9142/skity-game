@@ -47,13 +47,16 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
 
   // ZK Config Provider (browser-compatible)
   const zkConfigProvider = useMemo(
-    () => new FetchZkConfigProvider('/zk-keys', fetch.bind(window)),
+    () => new FetchZkConfigProvider(
+      `${window.location.origin}/zk-keys`,
+      fetch.bind(window)
+    ),
     []
   );
 
-  // Proof provider - use wallet's proof server if available
+  // Proof provider - use preprod proof server
   const proofProvider = useMemo(() => {
-    const proofServerUri = 'http://localhost:6300';
+    const proofServerUri = 'https://prover.preprod.midnight.network'; // Preprod proof server
     return httpClientProofProvider(proofServerUri, zkConfigProvider);
   }, [zkConfigProvider]);
 
@@ -68,11 +71,11 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     [shieldedAddress]
   );
 
-  // Public data provider
+  // Public data provider - use preprod indexer
   const publicDataProvider = useMemo(
     () => indexerPublicDataProvider(
-      'https://indexer.testnet.midnight.network/api/v1/graphql',
-      'wss://indexer.testnet.midnight.network/api/v1/graphql'
+      'https://indexer.preprod.midnight.network/api/v3/graphql',
+      'wss://indexer.preprod.midnight.network/api/v3/graphql/ws'
     ),
     []
   );
@@ -138,22 +141,68 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     
     setConnecting(true);
     try {
-      if (!window.midnight?.mnLace) {
-        throw new Error('Lace wallet not found. Please install the Lace extension.');
+      // Debug: Log what's available on window
+      console.log('🔍 Checking for Lace wallet...');
+      console.log('window.midnight:', window.midnight);
+      
+      // Check if midnight object exists
+      if (!window.midnight) {
+        throw new Error('Lace wallet not found. Please install the Lace extension and refresh the page.');
       }
 
-      const wallet = await window.midnight.mnLace;
-      const api = await wallet.connect('undeployed');
+      // Find the wallet API - it's stored with a UUID key
+      const walletKeys = Object.keys(window.midnight);
+      console.log('Available wallet keys:', walletKeys);
       
+      // Get the first wallet API (usually there's only one)
+      const walletKey = walletKeys.find(key => key !== 'mnLace' && typeof window.midnight![key] === 'object');
+      
+      if (!walletKey) {
+        throw new Error('No Midnight wallet API found. Please make sure Lace is properly installed.');
+      }
+
+      console.log('🔌 Connecting to Lace wallet via key:', walletKey);
+      
+      const walletAPI = window.midnight[walletKey];
+      console.log('Wallet API object:', walletAPI);
+      
+      // Call connect method with network ID (preprod for testnet)
+      console.log('Calling connect("preprod")...');
+      const api = await walletAPI.connect('preprod');
+      console.log('Connect result:', api);
+      
+      if (!api) {
+        throw new Error('Failed to connect to Lace wallet');
+      }
+      
+      if (!api) {
+        throw new Error('Failed to enable Lace wallet');
+      }
+
+      console.log('✅ Lace wallet enabled');
+      
+      // Get wallet addresses using the correct API method
+      console.log('Getting wallet addresses...');
       const addresses = await api.getShieldedAddresses();
-      const connectionStatus = await api.getConnectionStatus();
+      console.log('📊 Wallet addresses:', addresses);
+      console.log('📊 Full addresses object keys:', Object.keys(addresses));
       
-      if (connectionStatus) {
+      // The contract expects a coin public key (shield-cpk), not a shielded address
+      // Check if coinPublicKey is available in the response
+      const coinPublicKey = (addresses as any).coinPublicKey || (addresses as any).publicKey;
+      
+      if (addresses && addresses.shieldedAddress) {
         setConnectedAPI(api);
         setShieldedAddress(addresses.shieldedAddress);
-        setWalletAddress(addresses.shieldedAddress); // Use shielded address as wallet address
+        // Use coin public key if available, otherwise fall back to shielded address
+        setWalletAddress(coinPublicKey || addresses.shieldedAddress);
         setIsConnected(true);
-        console.log('✅ Connected to Lace wallet:', addresses.shieldedAddress);
+        console.log('✅ Connected to Lace wallet');
+        console.log('   Shielded Address:', addresses.shieldedAddress);
+        console.log('   Coin Public Key:', coinPublicKey || 'not found');
+      } else {
+        console.error('No shielded address found:', addresses);
+        throw new Error('Failed to get wallet address');
       }
     } catch (error) {
       console.error('❌ Failed to connect to wallet:', error);

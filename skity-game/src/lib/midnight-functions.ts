@@ -6,14 +6,18 @@
 import { Contract, ledger, witnesses, type GamePrivateState } from '@framed/contract';
 import { findDeployedContract } from '@midnight-ntwrk/midnight-js-contracts';
 import { CompiledContract } from '@midnight-ntwrk/compact-js';
+import { setNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
 import type { MidnightGameProviders } from '../context/WalletContext';
+
+// Set network ID - change to 'preprod' for testnet or 'undeployed' for local
+setNetworkId('preprod');
 
 // Type for the deployed game contract
 type DeployedGameContract = any; // Using any for now due to complex type inference
 
-// Pre-compile the game contract with ZK circuit assets
+// Pre-compile the game contract with ZK circuit assets and witnesses
 const gameCompiledContract = CompiledContract.make('game', Contract).pipe(
-  CompiledContract.withVacantWitnesses,
+  CompiledContract.withWitnesses(witnesses),
   CompiledContract.withCompiledFileAssets('/zk-keys'),
 );
 
@@ -293,10 +297,20 @@ export const completeReveal = async (eliminatedPlayerAddress: Uint8Array): Promi
  */
 export const getGameState = async () => {
   if (!gameContractInstance) throw new Error('Contract not connected');
+  if (!currentProviders) throw new Error('Providers not initialized');
   
   try {
-    const state = await gameContractInstance.state();
-    const ledgerState = ledger(state);
+    // Query the current contract state from the indexer
+    const contractAddress = gameContractInstance.deployTxData.public.contractAddress;
+    const currentState = await currentProviders.publicDataProvider.queryContractState(contractAddress);
+    
+    if (!currentState) {
+      console.warn('No contract state found, using initial state');
+      const initialState = gameContractInstance.deployTxData.public.initialContractState;
+      return ledger(initialState.data);
+    }
+    
+    const ledgerState = ledger(currentState.data);
     return ledgerState;
   } catch (error) {
     console.error('❌ Failed to get game state:', error);
